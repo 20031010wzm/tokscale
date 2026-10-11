@@ -1144,16 +1144,25 @@ fn parse_all_messages_streaming<S: MessageSink>(
         fallback_timestamp_indices: Vec<usize>,
     ) -> Option<message_cache::CachedSourceEntry> {
         let fingerprint = message_cache::SourceFingerprint::from_path(path)?;
-        if fingerprint.size != consumed_offset {
-            return None;
-        }
+        let codex_incremental = if sessions::utils::is_zst_path(path) {
+            message_cache::CodexIncrementalCache {
+                state,
+                consumed_offset: fingerprint.size,
+                ends_with_newline: true,
+                prefix_hash: fingerprint.content_hash,
+            }
+        } else {
+            if fingerprint.size != consumed_offset {
+                return None;
+            }
 
-        let codex_incremental = message_cache::build_codex_incremental_cache_with_prefix_hash(
-            path,
-            consumed_offset,
-            state,
-            fingerprint.content_hash,
-        )?;
+            message_cache::build_codex_incremental_cache_with_prefix_hash(
+                path,
+                consumed_offset,
+                state,
+                fingerprint.content_hash,
+            )?
+        };
 
         Some(message_cache::CachedSourceEntry::new(
             message_cache::CacheIdentity::for_client(ClientId::Codex),
@@ -2004,58 +2013,60 @@ fn parse_all_messages_streaming<S: MessageSink>(
                 return reparse_from_start(true);
             }
 
-            if let Some(codex_incremental) = cached.codex_incremental.as_ref() {
-                if fingerprint.size > codex_incremental.consumed_offset
-                    && message_cache::codex_prefix_matches(path, codex_incremental)
-                {
-                    let parsed = sessions::codex::parse_codex_file_incremental(
-                        path,
-                        codex_incremental.consumed_offset,
-                        codex_incremental.state.clone(),
-                    );
-                    if parsed.parse_succeeded && !parsed.unresolved_model_events {
-                        let mut raw_messages = cached.messages.clone();
-                        let mut fallback_timestamp_indices =
-                            cached.fallback_timestamp_indices.clone();
-                        let existing_len = raw_messages.len();
-                        fallback_timestamp_indices.extend(
-                            parsed
-                                .fallback_timestamp_indices
-                                .iter()
-                                .map(|index| existing_len + index),
-                        );
-                        let missing_usage = (
-                            parsed.is_missing_usage(),
-                            parsed.state.has_own_synthetic_activity,
-                        );
-                        raw_messages.extend(parsed.messages);
-                        let turn_coverage = parsed.state.turn_coverage.clone();
-                        let cache_entry = build_codex_cache_entry(
+            if !sessions::utils::is_zst_path(path) {
+                if let Some(codex_incremental) = cached.codex_incremental.as_ref() {
+                    if fingerprint.size > codex_incremental.consumed_offset
+                        && message_cache::codex_prefix_matches(path, codex_incremental)
+                    {
+                        let parsed = sessions::codex::parse_codex_file_incremental(
                             path,
-                            raw_messages.clone(),
-                            parsed.consumed_offset,
-                            parsed.state,
-                            fallback_timestamp_indices.clone(),
+                            codex_incremental.consumed_offset,
+                            codex_incremental.state.clone(),
                         );
-                        if let Some(cache_entry) = cache_entry {
-                            let messages = finalize_codex_messages(
-                                raw_messages,
-                                pricing,
-                                is_headless,
-                                &fallback_timestamp_indices,
-                                fallback_timestamp,
+                        if parsed.parse_succeeded && !parsed.unresolved_model_events {
+                            let mut raw_messages = cached.messages.clone();
+                            let mut fallback_timestamp_indices =
+                                cached.fallback_timestamp_indices.clone();
+                            let existing_len = raw_messages.len();
+                            fallback_timestamp_indices.extend(
+                                parsed
+                                    .fallback_timestamp_indices
+                                    .iter()
+                                    .map(|index| existing_len + index),
                             );
+                            let missing_usage = (
+                                parsed.is_missing_usage(),
+                                parsed.state.has_own_synthetic_activity,
+                            );
+                            raw_messages.extend(parsed.messages);
+                            let turn_coverage = parsed.state.turn_coverage.clone();
+                            let cache_entry = build_codex_cache_entry(
+                                path,
+                                raw_messages.clone(),
+                                parsed.consumed_offset,
+                                parsed.state,
+                                fallback_timestamp_indices.clone(),
+                            );
+                            if let Some(cache_entry) = cache_entry {
+                                let messages = finalize_codex_messages(
+                                    raw_messages,
+                                    pricing,
+                                    is_headless,
+                                    &fallback_timestamp_indices,
+                                    fallback_timestamp,
+                                );
 
-                            return (
-                                CachedParseOutcome {
-                                    messages,
-                                    retained_message_keys: HashSet::new(),
-                                    cache_entry: Some(cache_entry),
-                                    invalidate_cache: false,
-                                },
-                                turn_coverage,
-                                missing_usage,
-                            );
+                                return (
+                                    CachedParseOutcome {
+                                        messages,
+                                        retained_message_keys: HashSet::new(),
+                                        cache_entry: Some(cache_entry),
+                                        invalidate_cache: false,
+                                    },
+                                    turn_coverage,
+                                    missing_usage,
+                                );
+                            }
                         }
                     }
                 }

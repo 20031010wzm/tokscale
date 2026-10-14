@@ -150,3 +150,62 @@ fn desktop_cache_reads_code_and_chat_usage_with_future_models() {
     usage.merge_into(&mut messages);
     assert_eq!(messages.iter().map(|m| m.tokens.total()).sum::<i64>(), 20);
 }
+
+#[test]
+fn local_claude_merge_keeps_desktop_usage_without_counting_advisors_as_replies() {
+    let home = tempfile::tempdir().unwrap();
+    write_cache(home.path(), false);
+    let project = home.path().join(".claude/projects/repro");
+    std::fs::create_dir_all(&project).unwrap();
+    // This reply also exists in the Desktop cache. The transcript adds an
+    // advisor call that the Desktop copy does not carry, so the combined
+    // result must retain both sources without counting the reply twice.
+    let transcript = json!({
+        "type": "assistant",
+        "timestamp": "2026-01-01T00:00:00Z",
+        "requestId": "r",
+        "message": {
+            "id": "code-message",
+            "model": "claude-future-code-42",
+            "usage": {
+                "input_tokens": 3,
+                "output_tokens": 1,
+                "iterations": [{
+                    "type": "advisor_message",
+                    "model": "claude-fable-5-1",
+                    "input_tokens": 11,
+                    "output_tokens": 2
+                }]
+            }
+        }
+    });
+    std::fs::write(project.join("sdk.jsonl"), transcript.to_string()).unwrap();
+
+    let parsed = tokscale_core::parse_local_clients(tokscale_core::LocalParseOptions {
+        home_dir: Some(home.path().to_string_lossy().into_owned()),
+        clients: Some(vec!["claude".to_string()]),
+        use_env_roots: false,
+        ..Default::default()
+    })
+    .unwrap();
+
+    assert_eq!(
+        parsed.messages.len(),
+        4,
+        "reply, advisor, chat and undated balance"
+    );
+    assert_eq!(parsed.counts.get(tokscale_core::ClientId::Claude), 2);
+    assert_eq!(
+        parsed.messages.iter().map(|m| m.message_count).sum::<i32>(),
+        2
+    );
+    let tokens: i64 = parsed
+        .messages
+        .iter()
+        .map(|m| m.input + m.output + m.cache_read + m.cache_write + m.reasoning)
+        .sum();
+    assert_eq!(
+        tokens, 43,
+        "30 Desktop tokens plus 13 advisor tokens, without replaying the shared reply"
+    );
+}

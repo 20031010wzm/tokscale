@@ -478,15 +478,15 @@ enum CursorSubcommand {
         #[arg(long, help = "Output as JSON")]
         json: bool,
     },
-    #[command(about = "Sync Cursor API usage into cursor-cache/usage*.csv")]
+    #[command(about = "Sync Cursor API usage into cursor-cache/usage*.json")]
     Sync {
         #[arg(long, help = "Output as JSON")]
         json: bool,
         #[arg(
             long,
             value_name = "SECONDS",
-            value_parser = clap::value_parser!(u64).range(1..),
-            help = "Overall sync timeout in seconds (overrides default dynamic budget)"
+            value_parser = clap::value_parser!(u64).range(1..=cursor::CURSOR_MAX_SYNC_TIMEOUT_SECS),
+            help = "Overall sync timeout in seconds, 1-86400 (overrides cursor.syncTimeoutSeconds in settings.json and the default dynamic budget)"
         )]
         timeout: Option<u64>,
     },
@@ -9688,6 +9688,17 @@ mod tests {
         assert!(Cli::try_parse_from(["tokscale", "cursor", "sync", "--json"]).is_ok());
         assert!(Cli::try_parse_from(["tokscale", "cursor", "sync", "--timeout", "300"]).is_ok());
         assert!(Cli::try_parse_from(["tokscale", "cursor", "sync", "--timeout", "0"]).is_err());
+        assert!(Cli::try_parse_from(["tokscale", "cursor", "sync", "--timeout", "86400"]).is_ok());
+        assert!(Cli::try_parse_from(["tokscale", "cursor", "sync", "--timeout", "86401"]).is_err());
+        // A 19-digit value used to parse and then panic on `Instant` overflow.
+        assert!(Cli::try_parse_from([
+            "tokscale",
+            "cursor",
+            "sync",
+            "--timeout",
+            "18446744073709551615"
+        ])
+        .is_err());
     }
 
     #[test]

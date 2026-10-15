@@ -44,6 +44,10 @@
 |:---:|:---:|
 | ![TUI Daily Summary](.github/assets/tui-daily.png) | ![TUI Stats](.github/assets/tui-stats.png) | 
 
+| Session Details | Hourly |
+|:---:|:---:|
+| ![TUI Session Details](.github/assets/tui-sessions.png) | ![TUI Hourly](.github/assets/tui-hourly.png) |
+
 | Frontend (3D Contributions Graph) | Wrapped 2025 |
 |:---:|:---:|
 | <a href="https://tokscale.ai"><img alt="Frontend (3D Contributions Graph)" src=".github/assets/frontend-contributions-graph.png" width="700px" /></a> | <a href="#wrapped-2025"><img alt="Wrapped 2025" src=".github/assets/wrapped-2025-agents.png" width="700px" /></a> |

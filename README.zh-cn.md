@@ -87,7 +87,7 @@
 | <img width="48px" src=".github/assets/client-kilocode.png" alt="Kilo CLI" /> | [Kilo CLI](https://github.com/nicepkg/kilo) | `~/.local/share/kilo/kilo.db` |
 | <img width="48px" src=".github/assets/client-mux.png" alt="Mux" /> | [Mux](https://github.com/coder/mux) | `~/.mux/sessions/` |
 | <img width="48px" src=".github/assets/client-crush.png" alt="Crush" /> | [Crush](https://crush.ai/) | `$XDG_DATA_HOME/crush/projects.json`（项目注册表；回退路径：`~/.local/share/crush/projects.json`） |
-| <img width="48px" src=".github/assets/client-goose.png" alt="Goose" /> | [Goose](https://github.com/aaif-goose/goose) | `~/.local/share/goose/sessions/sessions.db`（+ macOS Application Support、旧版 Block/goose 路径；可通过 `GOOSE_PATH_ROOT` 覆盖） |
+| <img width="48px" src=".github/assets/client-goose.png" alt="Goose" /> | [Goose](https://github.com/aaif-goose/goose) | `~/.local/share/goose/sessions/sessions.db` / `%APPDATA%\Block\goose\data\sessions\sessions.db`（+ macOS Application Support、旧版 Block/goose 路径；可通过 `GOOSE_PATH_ROOT` 覆盖） |
 | <img width="48px" src=".github/assets/client-antigravity.png" alt="Antigravity" /> | [Google Antigravity](https://antigravity.google/) | 通过 `tokscale antigravity sync` 缓存到 `~/.config/tokscale/antigravity-cache/sessions/*.jsonl`（使用本地语言服务器 RPC） |
 | <img width="48px" src=".github/assets/client-antigravity.png" alt="Antigravity CLI" /> | [Antigravity CLI](https://antigravity.google/) | `~/.gemini/antigravity-cli/conversations/*.db`（可通过 `GEMINI_CLI_HOME` 覆盖 Gemini 主目录；本地 SQLite，直接读取 — 无需 `antigravity sync`） |
 | <img width="48px" src=".github/assets/client-antigravity.png" alt="Antigravity IDE Extension" /> | [Antigravity IDE Extension](https://www.antigravity.google/docs/ide/extensions/) | `~/.gemini/antigravity/conversations/*.db`（直接读取本地 SQLite） |
@@ -1517,7 +1517,7 @@ AI 编程工具将会话数据存储在跨平台位置。大多数工具在所�
 | Codebuff | `~/.config/manicode/projects/`（+ `manicode-dev`、`manicode-staging`） | `%USERPROFILE%\.config\manicode\projects\` | 通过 `CODEBUFF_DATA_DIR` 环境变量覆盖 |
 | Kilo CLI | `~/.local/share/kilo/` | `%USERPROFILE%\.local\share\kilo\` | 与 OpenCode 一样使用 `xdg-basedir` |
 | Crush | `$XDG_DATA_HOME/crush/`（回退路径：`~/.local/share/crush/`） | `%USERPROFILE%\.local\share\crush\`（如果设置了 `%XDG_DATA_HOME%`，则为 `%XDG_DATA_HOME%\crush\`） | 使用带回退路径的 XDG 数据目录 |
-| Goose | `~/.local/share/goose/sessions/`（+ macOS Application Support、旧版 Block 路径） | `%USERPROFILE%\.local\share\goose\sessions\` | 可通过 `GOOSE_PATH_ROOT` 环境变量配置 |
+| Goose | `~/.local/share/goose/sessions/`（+ macOS Application Support、旧版 Block 路径） | `%APPDATA%\Block\goose\data\sessions` | 可通过 `GOOSE_PATH_ROOT` 环境变量配置 |
 | Antigravity | `~/.config/tokscale/antigravity-cache/sessions/` | — | `tokscale antigravity sync` 目前仅支持 macOS / Linux |
 | Antigravity IDE Extension | `~/.gemini/antigravity/conversations/` | `%USERPROFILE%\.gemini\antigravity\conversations\` | 所有平台使用相同路径 |
 | Zed Agent | `~/.local/share/zed/threads/threads.db` | `%LOCALAPPDATA%\Zed\threads\threads.db` | 仅限托管 Zed 模型的使用量；不含外部 ACP 代理 |
@@ -1544,7 +1544,7 @@ AI 编程工具将会话数据存储在跨平台位置。大多数工具在所�
 
 > **Devin Desktop 代理支持**：本地用量解析适用于会在 NDJSON 流中发出 `usage_update` 事件的 ACP 连接代理（例如 Cascade/Windsurf、claude-code、opencode）。默认的 **devin-cloud** 代理不会发出本地 `usage_update` 事件——其用量仍保留在服务器端，tokscale 无法在没有账号级 API 的情况下跟踪它。
 
-> **注意**：在 Windows 上，`~` 扩展为 `%USERPROFILE%`（例如 `C:\Users\用户名`）。这些工具故意使用 Unix 风格的路径（如 `.local/share`）而不是 Windows 原生路径（如 `%APPDATA%`），以实现跨平台一致性。
+> **注意**：在 Windows 上，`~` 扩展为 `%USERPROFILE%`（例如 `C:\Users\用户名`）。部分工具使用 Unix 风格的路径（如 `.local/share`）以保持跨平台一致性，另一些工具（包括 Goose）则使用上表列出的 Windows 原生路径（如 `%APPDATA%`）。
 
 #### Windows 特定配置
 
@@ -1975,6 +1975,8 @@ Crush 在项目级 SQLite 数据库（`crush.db`）中存储使用量。由于 C
 ### Goose
 
 位置：`~/.local/share/goose/sessions/sessions.db`（同时扫描 `~/Library/Application Support/goose/`、`~/Library/Application Support/Block/goose/`、`~/.local/share/Block/goose/`；可通过 `GOOSE_PATH_ROOT` 覆盖）
+
+原生 Windows 扫描先检查 `%APPDATA%\Block\goose\data\sessions\sessions.db`，再检查 XDG 和旧版位置。`APPDATA` 未设置或为空时，先检查系统 Roaming 目录，再检查桌面版的 `<HOME>/AppData/Roaming` 后备目录。`--home` 扫描忽略 `GOOSE_PATH_ROOT` 和进程环境决定的 Windows 位置，并检查 `<home>/AppData/Roaming/Block/goose/data/sessions/sessions.db`。未指定 `--home` 时，绝对路径 `GOOSE_PATH_ROOT` 始终优先，即使其数据库尚不存在也不回退；相对路径值会被忽略。移动可执行文件不会改变数据库位置。
 
 Goose 在 SQLite 的 `sessions.db` 中按会话保存使用量。Tokscale 从 `model_config_json` 提取模型，从 `provider_name` 提取提供商，并按会话累加输入/输出 Token 总数。当推理 Token 列有数据时也会被推断出来。
 

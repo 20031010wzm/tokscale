@@ -86,7 +86,7 @@
 | <img width="48px" src=".github/assets/client-kilocode.png" alt="Kilo CLI" /> | [Kilo CLI](https://github.com/nicepkg/kilo) | `~/.local/share/kilo/kilo.db` |
 | <img width="48px" src=".github/assets/client-mux.png" alt="Mux" /> | [Mux](https://github.com/coder/mux) | `~/.mux/sessions/` |
 | <img width="48px" src=".github/assets/client-crush.png" alt="Crush" /> | [Crush](https://crush.ai/) | `$XDG_DATA_HOME/crush/projects.json`（プロジェクトレジストリ。フォールバック: `~/.local/share/crush/projects.json`） |
-| <img width="48px" src=".github/assets/client-goose.png" alt="Goose" /> | [Goose](https://github.com/aaif-goose/goose) | `~/.local/share/goose/sessions/sessions.db` (+ macOS Application Support、レガシー Block/goose パス; `GOOSE_PATH_ROOT` でオーバーライド可能) |
+| <img width="48px" src=".github/assets/client-goose.png" alt="Goose" /> | [Goose](https://github.com/aaif-goose/goose) | `~/.local/share/goose/sessions/sessions.db` / `%APPDATA%\Block\goose\data\sessions\sessions.db` (+ macOS Application Support、レガシー Block/goose パス; `GOOSE_PATH_ROOT` でオーバーライド可能) |
 | <img width="48px" src=".github/assets/client-antigravity.png" alt="Antigravity" /> | [Google Antigravity](https://antigravity.google/) | `tokscale antigravity sync` で `~/.config/tokscale/antigravity-cache/sessions/*.jsonl` にキャッシュ（ローカル言語サーバ RPC を使用） |
 | <img width="48px" src=".github/assets/client-antigravity.png" alt="Antigravity CLI" /> | [Antigravity CLI](https://antigravity.google/) | `~/.gemini/antigravity-cli/conversations/*.db`（Gemini ホームは `GEMINI_CLI_HOME` でオーバーライド可能；ローカル SQLite を直接読み取るため `antigravity sync` は不要） |
 | <img width="48px" src=".github/assets/client-antigravity.png" alt="Antigravity IDE Extension" /> | [Antigravity IDE Extension](https://www.antigravity.google/docs/ide/extensions/) | `~/.gemini/antigravity/conversations/*.db`（ローカル SQLite を直接読み取り） |
@@ -1517,7 +1517,7 @@ AIコーディングツールはクロスプラットフォームの場所にセ
 | Codebuff | `~/.config/manicode/projects/` (+ `manicode-dev`、`manicode-staging`) | `%USERPROFILE%\.config\manicode\projects\` | `CODEBUFF_DATA_DIR` 環境変数でオーバーライド |
 | Kilo CLI | `~/.local/share/kilo/` | `%USERPROFILE%\.local\share\kilo\` | OpenCodeと同様に`xdg-basedir`を使用 |
 | Crush | `$XDG_DATA_HOME/crush/`（フォールバック: `~/.local/share/crush/`） | `%USERPROFILE%\.local\share\crush\`（設定されていれば `%XDG_DATA_HOME%\crush\`） | フォールバック付きでXDGデータディレクトリを使用 |
-| Goose | `~/.local/share/goose/sessions/` (+ macOS Application Support、レガシー Block パス) | `%USERPROFILE%\.local\share\goose\sessions\` | `GOOSE_PATH_ROOT` 環境変数で設定可能 |
+| Goose | `~/.local/share/goose/sessions/` (+ macOS Application Support、レガシー Block パス) | `%APPDATA%\Block\goose\data\sessions` | `GOOSE_PATH_ROOT` 環境変数で設定可能 |
 | Antigravity | `~/.config/tokscale/antigravity-cache/sessions/` | — | `tokscale antigravity sync` は現在 macOS / Linux でのみサポート |
 | Antigravity CLI | `~/.gemini/antigravity-cli/conversations/` | `%USERPROFILE%\.gemini\antigravity-cli\conversations\` | `GEMINI_CLI_HOME` 環境変数で設定可能 |
 | Antigravity IDE Extension | `~/.gemini/antigravity/conversations/` | `%USERPROFILE%\.gemini\antigravity\conversations\` | すべてのプラットフォームで同じパス |
@@ -1545,7 +1545,7 @@ AIコーディングツールはクロスプラットフォームの場所にセ
 
 > **Devin Desktop のエージェント対応**: ローカル使用量の解析は、NDJSON ストリームで `usage_update` イベントを出力する ACP 接続エージェント（例: Cascade/Windsurf、claude-code、opencode）で機能します。既定の **devin-cloud** エージェントはローカルの `usage_update` を出力しないため、使用量はサーバー側にとどまり、アカウントレベルの API なしには tokscale で追跡できません。
 
-> **注**: Windowsでは`~`は`%USERPROFILE%`に展開されます（例：`C:\Users\ユーザー名`）。これらのツールは`%APPDATA%`のようなWindowsネイティブパスではなく、クロスプラットフォームの一貫性のためにUnixスタイルのパス（`.local/share`など）を意図的に使用しています。
+> **注**: Windowsでは`~`は`%USERPROFILE%`に展開されます（例：`C:\Users\ユーザー名`）。一部のツールはクロスプラットフォームの一貫性のためにUnixスタイルのパス（`.local/share`など）を使用し、Gooseを含む他のツールは上の表に示すWindowsネイティブパス（`%APPDATA%`など）を使用します。
 
 #### Windows固有の設定
 
@@ -1938,6 +1938,8 @@ Crushはプロジェクトごとのデータベース（`crush.db`）に使用�
 ### Goose
 
 場所: `~/.local/share/goose/sessions/sessions.db`（`~/Library/Application Support/goose/`、`~/Library/Application Support/Block/goose/`、`~/.local/share/Block/goose/` もスキャン; `GOOSE_PATH_ROOT` でオーバーライド可能）
+
+ネイティブ Windows のスキャンは、XDGやレガシーの場所より先に `%APPDATA%\Block\goose\data\sessions\sessions.db` を確認します。`APPDATA` が未設定または空の場合、システムの Roaming ディレクトリを確認し、その後 Desktop の `<HOME>/AppData/Roaming` を確認します。`--home` を指定したスキャンは `GOOSE_PATH_ROOT` とプロセス環境に依存する Windows の場所を使用せず、`<home>/AppData/Roaming/Block/goose/data/sessions/sessions.db` も確認します。`--home` を指定しない場合、絶対パスの `GOOSE_PATH_ROOT` はデータベースが存在しなくても優先され、他の場所にはフォールバックしません。相対パスの値は無視します。実行ファイルを移動しても、データベースの場所は変わりません。
 
 Goose はセッションごとの使用量を SQLite の `sessions.db` に保存します。Tokscale は `model_config_json` からモデル、`provider_name` からプロバイダ、そしてセッションごとに累積された入力/出力トークン合計を抽出します。推論トークンはそのカラムが値を持つ場合に推定されます。
 

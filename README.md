@@ -86,7 +86,7 @@
 | <img width="48px" src=".github/assets/client-kilocode.png" alt="Kilo CLI" /> | [Kilo CLI](https://github.com/nicepkg/kilo) | `~/.local/share/kilo/kilo.db` |
 | <img width="48px" src=".github/assets/client-mux.png" alt="Mux" /> | [Mux](https://github.com/coder/mux) | `~/.mux/sessions/` |
 | <img width="48px" src=".github/assets/client-crush.png" alt="Crush" /> | [Crush](https://crush.ai/) | `$XDG_DATA_HOME/crush/projects.json` (project registry; fallback: `~/.local/share/crush/projects.json`) |
-| <img width="48px" src=".github/assets/client-goose.png" alt="Goose" /> | [Goose](https://github.com/aaif-goose/goose) | `~/.local/share/goose/sessions/sessions.db` (+ macOS Application Support, legacy Block/goose paths; override via `GOOSE_PATH_ROOT`) |
+| <img width="48px" src=".github/assets/client-goose.png" alt="Goose" /> | [Goose](https://github.com/aaif-goose/goose) | `~/.local/share/goose/sessions/sessions.db` / `%APPDATA%\Block\goose\data\sessions\sessions.db` (+ macOS Application Support, legacy Block/goose paths; override via `GOOSE_PATH_ROOT`) |
 | <img width="48px" src=".github/assets/client-antigravity.png" alt="Antigravity" /> | [Google Antigravity](https://antigravity.google/) | Cached via `tokscale antigravity sync` to `~/.config/tokscale/antigravity-cache/sessions/*.jsonl` (live RPC against the local language server) |
 | <img width="48px" src=".github/assets/client-antigravity.png" alt="Antigravity CLI" /> | [Antigravity CLI](https://antigravity.google/) | `~/.gemini/antigravity-cli/conversations/*.db` (override the Gemini home via `GEMINI_CLI_HOME`; local SQLite, read directly — no `antigravity sync` needed) |
 | <img width="48px" src=".github/assets/client-antigravity.png" alt="Antigravity IDE Extension" /> | [Antigravity IDE Extension](https://www.antigravity.google/docs/ide/extensions/) | `~/.gemini/antigravity/conversations/*.db` (local SQLite, read directly) |
@@ -1561,7 +1561,7 @@ AI coding tools store their session data in cross-platform locations. Most tools
 | Codebuff | `~/.config/manicode/projects/` (+ `manicode-dev`, `manicode-staging`) | `%USERPROFILE%\.config\manicode\projects\` | Override via `CODEBUFF_DATA_DIR` env var |
 | Kilo CLI | `~/.local/share/kilo/` | `%USERPROFILE%\.local\share\kilo\` | Uses `xdg-basedir` like OpenCode |
 | Crush | `$XDG_DATA_HOME/crush/` (fallback: `~/.local/share/crush/`) | `%USERPROFILE%\.local\share\crush\` (or `%XDG_DATA_HOME%\crush\` if set) | Uses XDG data directory with fallback |
-| Goose | `~/.local/share/goose/sessions/` (+ macOS Application Support, legacy Block paths) | `%USERPROFILE%\.local\share\goose\sessions\` | Configurable via `GOOSE_PATH_ROOT` env var |
+| Goose | `~/.local/share/goose/sessions/` (+ macOS Application Support, legacy Block paths) | `%APPDATA%\Block\goose\data\sessions` | Configurable via `GOOSE_PATH_ROOT` env var |
 | Antigravity | `~/.config/tokscale/antigravity-cache/sessions/` | — | `tokscale antigravity sync` is currently supported on macOS/Linux only |
 | Antigravity CLI | `~/.gemini/antigravity-cli/conversations/` | `%USERPROFILE%\.gemini\antigravity-cli\conversations\` | Configurable via `GEMINI_CLI_HOME` env var |
 | Antigravity IDE Extension | `~/.gemini/antigravity/conversations/` | `%USERPROFILE%\.gemini\antigravity\conversations\` | Same path on all platforms |
@@ -1591,7 +1591,7 @@ AI coding tools store their session data in cross-platform locations. Most tools
 
 > **Devin Desktop agent support**: Local usage parsing works for ACP-connected agents (e.g. Cascade/Windsurf, claude-code, opencode) that emit `usage_update` events in the NDJSON stream. The default **devin-cloud** agent does not emit local `usage_update` events — its usage stays server-side and cannot be tracked by tokscale without an account-level API.
 
-> **Note**: On Windows, `~` expands to `%USERPROFILE%` (e.g., `C:\Users\YourName`). These tools intentionally use Unix-style paths (like `.local/share`) even on Windows for cross-platform consistency, rather than Windows-native paths like `%APPDATA%`.
+> **Note**: On Windows, `~` expands to `%USERPROFILE%` (e.g., `C:\Users\YourName`). Some tools use Unix-style paths (like `.local/share`) for cross-platform consistency, while others, including Goose, use Windows-native paths like `%APPDATA%`, as listed above.
 
 #### Windows-Specific Configuration
 
@@ -2045,6 +2045,8 @@ Crush stores usage in per-project SQLite databases (`crush.db`). Tokscale import
 ### Goose
 
 Location: `~/.local/share/goose/sessions/sessions.db` (also scans `~/Library/Application Support/goose/`, `~/Library/Application Support/Block/goose/`, `~/.local/share/Block/goose/`; override via `GOOSE_PATH_ROOT`)
+
+Native Windows scans check `%APPDATA%\Block\goose\data\sessions\sessions.db` before XDG and legacy locations. With `APPDATA` unset or empty, the native roaming directory is checked before Desktop's `<HOME>/AppData/Roaming` fallback. `--home` scans ignore `GOOSE_PATH_ROOT` and process-specific Windows locations, and also check `<home>/AppData/Roaming/Block/goose/data/sessions/sessions.db`. Without `--home`, an absolute `GOOSE_PATH_ROOT` is authoritative even when its database is absent; relative values are ignored. Moving the executable does not relocate the database.
 
 Goose stores per-session usage in a SQLite `sessions.db`. Tokscale extracts the model from `model_config_json`, the provider from `provider_name`, and accumulated input/output token totals per session. Reasoning tokens are inferred when the column is populated.
 

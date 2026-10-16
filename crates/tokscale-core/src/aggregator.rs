@@ -692,6 +692,7 @@ mod tests {
             parent_session_id: None,
             is_turn_start: false,
             model_attribution_conflicted: false,
+            copilot_context: None,
         }
     }
 
@@ -1344,6 +1345,7 @@ mod tests {
             parent_session_id: None,
             is_turn_start: false,
             model_attribution_conflicted: false,
+            copilot_context: None,
             duration_ms: None,
         }
     }

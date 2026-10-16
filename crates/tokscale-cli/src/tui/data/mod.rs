@@ -2119,6 +2119,7 @@ mod tests {
             parent_session_id: None,
             is_turn_start: false,
             model_attribution_conflicted: false,
+            copilot_context: None,
         };
 
         accumulate_session_entry(&mut entry, &msg, 0.0, "test-model", "test-model", true);

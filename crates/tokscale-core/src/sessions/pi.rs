@@ -648,6 +648,13 @@ struct PiEmittedRecord<'a> {
 
 const PI_TOOLS_SUMMARIES_MODEL: &str = "tools/summaries";
 
+/// Trimmed field value, or `None` when it is absent or only whitespace.
+/// Applied to the record types this parser newly counts, whose identifiers
+/// have no stored spelling to stay compatible with.
+fn non_blank_trimmed(value: Option<&str>) -> Option<&str> {
+    value.map(str::trim).filter(|value| !value.is_empty())
+}
+
 /// The entry types that bill an API call without being an assistant reply.
 /// Pi's `/compact` writes `compaction`, a branch summarization writes
 /// `branch_summary`, and standalone accounting (e.g. cache warming) writes
@@ -678,26 +685,26 @@ fn pi_emitted_record<'a>(
         (
             message.usage.as_ref()?,
             Some(message.model.as_deref()?),
-            message.provider.as_deref(),
+            // Historical behaviour: a reply's recorded spellings are kept as
+            // they are, and only a fully empty provider falls back to
+            // inference, so cached assistant rows stay byte-identical.
+            message.provider.as_deref().filter(|p| !p.is_empty()),
             true,
             false,
             false,
         )
     } else if is_message && role == Some("toolResult") && options.count_operations {
         // A tool result can report the usage of the call that produced it.
+        // These records are new to this parser, so surrounding whitespace is
+        // normalized away rather than stored as part of an identifier.
         let message = message?;
+        let recorded_model = non_blank_trimmed(message.model.as_deref());
         (
             message.usage.as_ref()?,
-            message
-                .model
-                .as_deref()
-                .filter(|model| !model.trim().is_empty()),
-            message.provider.as_deref(),
+            recorded_model,
+            non_blank_trimmed(message.provider.as_deref()),
             false,
-            message
-                .model
-                .as_deref()
-                .is_none_or(|model| model.trim().is_empty()),
+            recorded_model.is_none(),
             true,
         )
     } else if options.count_operations && is_operation {
@@ -705,11 +712,8 @@ fn pi_emitted_record<'a>(
         // provider fields. Older compaction/branch-summary records do not.
         (
             entry.usage.as_ref()?,
-            entry
-                .model
-                .as_deref()
-                .filter(|model| !model.trim().is_empty()),
-            entry.provider.as_deref(),
+            non_blank_trimmed(entry.model.as_deref()),
+            non_blank_trimmed(entry.provider.as_deref()),
             false,
             entry.entry_type != "usage",
             true,
@@ -939,9 +943,8 @@ fn parse_pi_format_file_inner(
         // own billed model. Official model-less tool/summary work stays in its
         // own bucket. Only legacy model-less `usage` rows inherit the current
         // session selection updated by `model_change` and assistant replies.
-        let clean_recorded_provider = recorded_provider.filter(|provider| {
-            !provider.is_empty() && accepts_replacement_field(provider, options.lossy_line_reader)
-        });
+        let clean_recorded_provider = recorded_provider
+            .filter(|provider| accepts_replacement_field(provider, options.lossy_line_reader));
         // Pi itself groups model-less tool results, compactions, and branch
         // summaries as Tools/summaries. Keep that billed work separate rather
         // than falsely charging the preceding conversation model. Standalone
@@ -956,9 +959,7 @@ fn parse_pi_format_file_inner(
             match recorded_model {
                 Some(recorded_model) => {
                     let model =
-                        if accepts_replacement_field(recorded_model, options.lossy_line_reader)
-                            && !recorded_model.trim().is_empty()
-                        {
+                        if accepts_replacement_field(recorded_model, options.lossy_line_reader) {
                             recorded_model.to_string()
                         } else {
                             "unknown".to_string()
@@ -1572,6 +1573,24 @@ mod tests {
             messages[1].cost_source,
             super::super::CostSource::ProviderReported
         );
+    }
+
+    #[test]
+    fn test_parse_pi_operation_blank_attribution_falls_back() {
+        // A whitespace-only model/provider is not an identifier, so the row
+        // must reach the normal inference and fallback paths.
+        let content = r#"{"type":"session","id":"pi_ses_blank","timestamp":"2026-10-12T02:27:31.079Z","cwd":"/tmp"}
+{"type":"usage","id":"u1","timestamp":"2026-10-12T03:00:00.000Z","kind":"cache_warm","provider":"  ","model":"  gpt-5  ","usage":{"input":1,"output":1}}
+{"type":"usage","id":"u2","timestamp":"2026-10-12T03:05:00.000Z","kind":"cache_warm","provider":"   ","model":"   ","usage":{"input":2,"output":2}}"#;
+        let file = create_test_file(content);
+
+        let messages = parse_pi_file(file.path());
+
+        assert_eq!(messages.len(), 2);
+        assert_eq!(messages[0].model_id, "gpt-5");
+        assert_eq!(messages[0].provider_id, "openai");
+        assert_eq!(messages[1].model_id, "unknown");
+        assert_eq!(messages[1].provider_id, "pi");
     }
 
     #[test]

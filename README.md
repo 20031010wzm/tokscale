@@ -1912,7 +1912,7 @@ JSONL format with session header and message entries:
 {"type":"message","id":"msg_001","timestamp":"2026-01-01T00:00:01.000Z","message":{"role":"assistant","model":"claude-3-5-sonnet","provider":"anthropic","usage":{"input":100,"output":50,"cacheRead":10,"cacheWrite":5,"totalTokens":165}}}
 ```
 
-Pi also bills work that is not an assistant reply: `/compact` writes a `compaction` record, branch summarization a `branch_summary` record, and standalone accounting (e.g. cache warming) a `usage` record, while a `toolResult` message can carry usage for the call behind it. Tokscale counts each of those as its own request and preserves its reported cost when present. A standalone `usage` record names its billed provider and model explicitly. Model-less tool results, compactions, and branch summaries stay in Pi's separate `tools/summaries` bucket instead of being charged to the preceding conversation model. A record without usage bills nothing.
+Pi also bills work that is not an assistant reply: `/compact` writes a `compaction` record, branch summarization a `branch_summary` record, and standalone accounting (e.g. cache warming) a `usage` record, while a `toolResult` message can carry usage for the call behind it. Tokscale counts each of those as its own request and preserves its reported cost when present. A current-format standalone `usage` record names its billed provider and model explicitly, while an older model-less one inherits the session's current selection (the last `model_change` or reply). Model-less tool results, compactions, and branch summaries stay in Pi's separate `tools/summaries` bucket instead of being charged to the preceding conversation model. A record without usage bills nothing.
 
 ### Senpi (OmO Native)
 
